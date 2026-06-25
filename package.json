@@ -1,0 +1,19 @@
+{
+  "name": "lsa-lead-poller-nodered",
+  "version": "1.0.0",
+  "description": "Polls Google Ads API for Local Services Ads leads (no webhook exists for LSA) and syncs to MongoDB + QuickBase. Compiled output is required from a Node-RED function node.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "google-ads-api": "^24.1.0",
+    "mongodb": "^6.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}

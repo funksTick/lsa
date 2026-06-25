@@ -1,0 +1,91 @@
+[
+  {
+    "id": "lsa-poll-tab",
+    "type": "tab",
+    "label": "LSA Lead Poller",
+    "disabled": false,
+    "info": "Polls Google Ads API for Local Services Ads leads every 10 minutes. No webhook exists for LSA, so this replaces one. Calls into the compiled TS module at /home/pi/lsa-lead-poller/dist/index.js."
+  },
+  {
+    "id": "lsa-poll-inject",
+    "type": "inject",
+    "z": "lsa-poll-tab",
+    "name": "Every 10 min",
+    "props": [
+      { "p": "payload" }
+    ],
+    "repeat": "",
+    "crontab": "*/10 * * * *",
+    "once": false,
+    "onceDelay": 5,
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 160,
+    "y": 120,
+    "wires": [["lsa-poll-function"]]
+  },
+  {
+    "id": "lsa-poll-function",
+    "type": "function",
+    "z": "lsa-poll-tab",
+    "name": "Run LSA poll",
+    "func": "// Lazily require so a Node-RED deploy/reload picks up a freshly built dist/.\n// Path matches where this repo is deployed on the Pi — adjust if different.\nconst { runPoll } = global.get('lsaPollerModule') || require('/home/pi/lsa-lead-poller/dist');\n\n// Build config from Node-RED environment variables (Settings > env vars,\n// or process env on the underlying node process). Keeping secrets out of\n// the flow JSON itself so this file is safe to keep in git.\nconst config = {\n    googleAds: {\n        clientId: env.get('GOOGLE_ADS_CLIENT_ID'),\n        clientSecret: env.get('GOOGLE_ADS_CLIENT_SECRET'),\n        developerToken: env.get('GOOGLE_ADS_DEVELOPER_TOKEN'),\n        refreshToken: env.get('GOOGLE_ADS_REFRESH_TOKEN'),\n        customerId: env.get('GOOGLE_ADS_CUSTOMER_ID'),\n        loginCustomerId: env.get('GOOGLE_ADS_LOGIN_CUSTOMER_ID') || undefined,\n    },\n    mongoUri: env.get('LSA_MONGODB_URI'),\n    mongoDbName: env.get('LSA_MONGODB_DBNAME') || 'onesolar',\n    quickBase: {\n        realmHostname: env.get('QB_REALM_HOSTNAME'),\n        userToken: env.get('QB_USER_TOKEN'),\n        leadsTableId: env.get('QB_LEADS_TABLE_ID'),\n        mergeFieldId: Number(env.get('QB_LEADS_MERGE_FIELD_ID') || 6),\n    },\n};\n\n(async () => {\n    try {\n        const result = await runPoll(config);\n        node.send({ payload: result, topic: 'lsa-poll-result' });\n        if (result.errors.length > 0) {\n            node.warn(`LSA poll completed with errors: ${result.errors.join('; ')}`);\n        } else {\n            node.status({ fill: 'green', shape: 'dot', text: `${result.changed} changed / ${result.fetched} fetched` });\n        }\n    } catch (err) {\n        node.error(`LSA poll failed: ${err.message}`, msg);\n        node.status({ fill: 'red', shape: 'ring', text: 'failed' });\n    }\n})();\n\nreturn null; // async function sends manually via node.send above",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 410,
+    "y": 120,
+    "wires": [["lsa-poll-debug", "lsa-poll-notify-errors"]]
+  },
+  {
+    "id": "lsa-poll-debug",
+    "type": "debug",
+    "z": "lsa-poll-tab",
+    "name": "Poll result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 660,
+    "y": 100,
+    "wires": []
+  },
+  {
+    "id": "lsa-poll-notify-errors",
+    "type": "switch",
+    "z": "lsa-poll-tab",
+    "name": "Has errors?",
+    "property": "payload.errors.length",
+    "propertyType": "msg",
+    "rules": [
+      { "t": "gt", "v": "0", "vt": "num" }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 1,
+    "x": 670,
+    "y": 160,
+    "wires": [["lsa-poll-error-handler"]]
+  },
+  {
+    "id": "lsa-poll-error-handler",
+    "type": "function",
+    "z": "lsa-poll-tab",
+    "name": "Format error notice",
+    "func": "msg.payload = `LSA lead poller errors:\\n${msg.payload.errors.join('\\n')}`;\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "x": 900,
+    "y": 160,
+    "wires": [[]]
+  }
+]
