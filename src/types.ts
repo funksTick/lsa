@@ -10,12 +10,13 @@
 export type LeadType = 'PHONE_CALL' | 'MESSAGE' | 'BOOKING' | 'UNSPECIFIED' | 'UNKNOWN';
 
 export type LeadStatus =
+  | 'NEW'
   | 'ACTIVE'
   | 'BOOKED'
+  | 'DECLINED'
   | 'CONSUMER_DECLINED'
   | 'EXPIRED'
   | 'DISABLED'
-  | 'DISPUTED'
   | 'WIPED_OUT' // contactDetails will be null on this status
   | 'UNSPECIFIED'
   | 'UNKNOWN';
@@ -34,8 +35,30 @@ export interface CreditDetails {
 }
 
 
+export type ConversationChannel =
+  | 'EMAIL'
+  | 'MESSAGE'
+  | 'PHONE_CALL'
+  | 'SMS'
+  | 'BOOKING'
+  | 'WHATSAPP'
+  | 'ADS_API'
+  | 'UNSPECIFIED'
+  | 'UNKNOWN';
+export type ParticipantType = 'ADVERTISER' | 'CONSUMER' | 'UNSPECIFIED' | 'UNKNOWN';
+
+export interface LeadConversation {
+  resourceName: string;
+  leadResourceName: string; // local_services_lead_conversation.lead — join key back to the parent lead
+  participantType: ParticipantType;
+  conversationChannel: ConversationChannel;
+  eventDateTime: string;
+  callRecordingUrl?: string; // only present for phone_call_details
+}
+
 export interface LocalServicesLead {
   leadId: string;
+  resourceName: string; // needed to join against local_services_lead_conversation.lead
   leadType: LeadType;
   categoryId: string;
   serviceId: string;
@@ -46,6 +69,7 @@ export interface LocalServicesLead {
   leadCharged: boolean;
   leadFeedbackSubmitted: boolean;
   creditDetails: CreditDetails | null;
+  conversations: LeadConversation[];
   existingId?: number;
 }
 

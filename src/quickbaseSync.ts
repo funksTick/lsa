@@ -7,6 +7,7 @@ import { formatPhoneNumber } from './utils/formatPhone';
 async function queryExisting(lead: LocalServicesLead, qbConfig: PollerConfig['quickBase']){
     const fields = tables.LEADS.FIELDS
     const phone = lead?.contactDetails?.phoneNumber ? formatPhoneNumber(lead.contactDetails?.phoneNumber) : null;
+    console.log(`Formatted query phone: ${phone}`)
     if(!phone) return null
     const data = {
         from: tables.LEADS.id,
@@ -20,22 +21,28 @@ async function queryExisting(lead: LocalServicesLead, qbConfig: PollerConfig['qu
 
 }
 
-const BASE_URL = `https://api.quickbase.com`;
-
 function toQuickBaseFields(lead: LocalServicesLead): QuickBaseRecordFields {
-    const fields = tables.LEADS.FIELDS
+    const fields = tables.LEADS.FIELDS;
+    const firstConversation = lead.conversations?.[0];
+    const callTime = firstConversation?.eventDateTime
+        ? firstConversation.eventDateTime.split('.')[0].replace(' ', 'T')
+        : null;
   return {
     ...( lead.existingId && {[fields.MERGE]: {value: lead.existingId}}),
-    [fields.G_LEAD_ID]: { value: lead.leadId },
+    [fields.G_LEAD_ID]: { value: lead.leadId ?? '' },
     [fields.LEAD_SOURCE]: { value: 'Google Local Service Ads'},
     [fields.CAMPAIGN]: { value: 'Google Local Service Ads'},
-    [fields.G_LEAD_TYPE]: { value: lead.leadType },
-    [fields.LEAD_NAME]: { value: lead.contactDetails?.consumerName ?? '' },
-    [fields.LEAD_PHONE]: { value: lead.contactDetails?.phoneNumber ?? '' },
-    [fields.LEAD_EMAIL]: { value: lead.contactDetails?.email ?? '' },
-    [fields.LEAD_STATUS]: { value: lead.leadStatus },
-    [fields.G_LEAD_CHARGED]: { value: lead.leadCharged },
-  };
+    [fields.G_LEAD_TYPE]: { value: lead.leadType ?? 'UNSPECIFIED' },
+    ...( !lead.existingId && {
+        [fields.LEAD_NAME]: { value: lead.contactDetails?.consumerName ?? '' },
+        [fields.LEAD_PHONE]: { value: lead.contactDetails?.phoneNumber ?? '' },
+        [fields.LEAD_EMAIL]: { value: lead.contactDetails?.email ?? '' },
+        [fields.LEAD_STATUS]: { value: lead.leadStatus ?? 'UNSPECIFIED' },
+    }),
+    [fields.G_LEAD_CHARGED]: { value: lead.leadCharged ?? false },
+    [fields.G_CALL_RECORDING]: {value: firstConversation?.callRecordingUrl ?? ''},
+    ...( callTime && { [fields.G_CALL_TIME]: { value: callTime } }),
+  }
 }
 
 export async function upsertToQuickBase(
@@ -56,11 +63,12 @@ export async function upsertToQuickBase(
   }
   const res = await qbApi(qbConfig).post(endpoints.RECORDS.UPSERT, body)
 
-  if (res.status !== 200) {
-    throw new Error(`QuickBase upsert failed: ${res.statusText} ${res.data}`);
+  if (res.status !== 200 && res.status !== 207) {
+    throw new Error(`QuickBase upsert failed: ${res.statusText} ${JSON.stringify(res.data)}`);
+  }
+  if (res.status === 207) {
+    console.warn('QuickBase upsert returned partial success (207):', JSON.stringify(res.data?.metadata ?? res.data));
   }
 
   return records.length;
 }
-
-

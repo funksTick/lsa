@@ -32,7 +32,9 @@ export const tables = {
             LEAD_EMAIL: '15',
             LEAD_STATUS: '8',
             G_LEAD_CHARGED: '498',
-            G_LEAD_ID: '499'
+            G_LEAD_ID: '499',
+            G_CALL_RECORDING: '501',
+            G_CALL_TIME: '502'
         }
     }
 }
