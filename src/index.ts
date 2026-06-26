@@ -4,18 +4,7 @@ import { syncLeadsToMongo } from './mongoSync';
 import { upsertToQuickBase } from './quickbaseSync';
 import type { PollerConfig, PollResult } from './types';
 
-/**
- * Single entry point for the Node-RED function node to call.
- *
- * Node-RED function nodes run in a vm sandbox and don't transpile TS, so this
- * compiled module is loaded with `require()` from the function node body —
- * see node-red-flow.json for the wiring. Keeping this as one async function
- * with a plain object in/out makes it trivial to call from that sandbox:
- *
- *   const { runPoll } = require('/home/pi/lsa-lead-poller/dist');
- *   const result = await runPoll(config);
- *   node.send({ payload: result });
- */
+
 export async function runPoll(config: PollerConfig): Promise<PollResult> {
   const errors: string[] = [];
   let fetched = 0;

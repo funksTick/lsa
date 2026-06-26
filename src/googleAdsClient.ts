@@ -15,16 +15,7 @@ export function createAdsCustomer(config: PollerConfig['googleAds']): Customer {
   });
 }
 
-/**
- * Pulls Local Services leads. No webhook exists for LSA (only the separate
- * Lead Form Extension product has one), so polling is the only option.
- *
- * GAQL date filtering on creation_date_time hasn't been verified against
- * this resource for all API versions — we pull the full set ordered by
- * creation date and let Mongo's upsert/dedupe do the real filtering. If you
- * confirm a working WHERE clause for your API version, add it here to cut
- * row volume instead of relying solely on the dedupe pass downstream.
- */
+
 export async function fetchRecentLeads(customer: Customer): Promise<LocalServicesLead[]> {
   const query = `
     SELECT

@@ -46,6 +46,7 @@ export interface LocalServicesLead {
   leadCharged: boolean;
   leadFeedbackSubmitted: boolean;
   creditDetails: CreditDetails | null;
+  existingId?: number;
 }
 
 
@@ -88,7 +89,5 @@ export interface PollerConfig {
   quickBase: {
     realmHostname: string;
     userToken: string;
-    leadsTableId: string;
-    mergeFieldId: number;
   };
 }

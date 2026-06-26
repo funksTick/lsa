@@ -1,20 +1,40 @@
 import type { LocalServicesLead, PollerConfig, QuickBaseRecordFields } from './types';
+import { qbApi, endpoints, tables } from './apis/quickbase';
+import { formatPhoneNumber } from './utils/formatPhone';
 
-/**
- * Maps a LocalServicesLead onto QuickBase field IDs and upserts via the
- * merge field (lead_id). Field IDs below are placeholders — swap for your
- * actual QB_LEADS_TABLE_ID schema.
- */
-function toQuickBaseFields(lead: LocalServicesLead, mergeFieldId: number): QuickBaseRecordFields {
+
+
+async function queryExisting(lead: LocalServicesLead, qbConfig: PollerConfig['quickBase']){
+    const fields = tables.LEADS.FIELDS
+    const phone = lead?.contactDetails?.phoneNumber ? formatPhoneNumber(lead.contactDetails?.phoneNumber) : null;
+    if(!phone) return null
+    const data = {
+        from: tables.LEADS.id,
+        select: [fields.MERGE],
+        where: `{${fields.LEAD_PHONE}.EX.${phone}}`
+    }
+    const res = await qbApi(qbConfig).post(endpoints.RECORDS.QUERY, data);
+    const existing = res.data?.data?.[0];
+    if(!existing) return null
+    return existing[fields.MERGE].value
+
+}
+
+const BASE_URL = `https://api.quickbase.com`;
+
+function toQuickBaseFields(lead: LocalServicesLead): QuickBaseRecordFields {
+    const fields = tables.LEADS.FIELDS
   return {
-    [mergeFieldId]: { value: lead.leadId },
-    '7': { value: lead.leadType },
-    '8': { value: lead.contactDetails?.consumerName ?? '' },
-    '9': { value: lead.contactDetails?.phoneNumber ?? '' },
-    '10': { value: lead.contactDetails?.email ?? '' },
-    '11': { value: lead.leadStatus },
-    '12': { value: lead.creationDateTime },
-    '13': { value: lead.leadCharged },
+    ...( lead.existingId && {[fields.MERGE]: {value: lead.existingId}}),
+    [fields.G_LEAD_ID]: { value: lead.leadId },
+    [fields.LEAD_SOURCE]: { value: 'Google Local Service Ads'},
+    [fields.CAMPAIGN]: { value: 'Google Local Service Ads'},
+    [fields.G_LEAD_TYPE]: { value: lead.leadType },
+    [fields.LEAD_NAME]: { value: lead.contactDetails?.consumerName ?? '' },
+    [fields.LEAD_PHONE]: { value: lead.contactDetails?.phoneNumber ?? '' },
+    [fields.LEAD_EMAIL]: { value: lead.contactDetails?.email ?? '' },
+    [fields.LEAD_STATUS]: { value: lead.leadStatus },
+    [fields.G_LEAD_CHARGED]: { value: lead.leadCharged },
   };
 }
 
@@ -23,27 +43,24 @@ export async function upsertToQuickBase(
   qbConfig: PollerConfig['quickBase']
 ): Promise<number> {
   if (leads.length === 0) return 0;
+    for ( const lead of leads){
+        const existing = await queryExisting(lead, qbConfig);
+        if(!existing) continue;
+        lead.existingId = existing
+    }
+    const records = leads.map((lead) => toQuickBaseFields(lead));
+    
+  const body =  {
+    to: tables.LEADS.id,
+    data: records
+  }
+  const res = await qbApi(qbConfig).post(endpoints.RECORDS.UPSERT, body)
 
-  const records = leads.map((lead) => toQuickBaseFields(lead, qbConfig.mergeFieldId));
-
-  const res = await fetch('https://api.quickbase.com/v1/records', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'QB-Realm-Hostname': qbConfig.realmHostname,
-      Authorization: `QB-USER-TOKEN ${qbConfig.userToken}`,
-    },
-    body: JSON.stringify({
-      to: qbConfig.leadsTableId,
-      data: records,
-      mergeFieldId: qbConfig.mergeFieldId,
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`QuickBase upsert failed: ${res.status} ${body}`);
+  if (res.status !== 200) {
+    throw new Error(`QuickBase upsert failed: ${res.statusText} ${res.data}`);
   }
 
   return records.length;
 }
+
+
